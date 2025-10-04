@@ -13,15 +13,17 @@ from PyQt5.QtCore import Qt
 flag = True
 
 class MainWindow(QMainWindow):
-    def __init__(self, *args, tracked_dict=None, **kwargs):
+    def __init__(self, *args, caller_globals=None, tracked_dict=None, **kwargs):
         super().__init__()
         self.setWindowTitle('Trace GUI')
         self.setCentralWidget(QWidget())
         self.hbox1 = QHBoxLayout(self.centralWidget())
         self.vbox = QVBoxLayout(self.centralWidget())
 
-        self.tracked_dict = tracked_dict or kwargs  # Use provided dict or kwargs
-        self.labels = {}  # Store QLabel objects for each tracked variable
+        # Use the caller's global namespace and tracked dictionary
+        self.glbl = caller_globals or {}
+        self.tracked_dict = tracked_dict or kwargs
+        self.labels = {}
 
         self.setStyleSheet(
             "QLabel{border: 2px solid black; border-radius: 5px; margin: 5px;}"
@@ -30,13 +32,14 @@ class MainWindow(QMainWindow):
         )
 
         self.initUI()
-        self.trace()
+        self.trace(*args, **kwargs)
         Thread(target=self.update, daemon=True).start()
         self.show()
 
     def initUI(self):
         self.vbox.addLayout(self.hbox1)
-        for key, value in self.tracked_dict.items():
+        for key in self.tracked_dict:
+            value = self.glbl.get(key, self.tracked_dict[key])
             label = QLabel(f"{key}: {value}", self)
             self.labels[key] = label
             self.hbox1.addWidget(label)
@@ -44,20 +47,24 @@ class MainWindow(QMainWindow):
     def update(self):
         while flag:
             for key, label in self.labels.items():
-                value = self.tracked_dict.get(key, "N/A")
+                # Check glbl first, fall back to tracked_dict
+                value = self.glbl.get(key, self.tracked_dict[key])
                 label.setText(f"{key}: {value}")
             time.sleep(1)
 
-    def trace(self):
-        pass  # No need for glbl; tracked_dict is used directly
+    def trace(self, *args, **kwargs):
+        # Update tracked_dict with initial kwargs if not provided
+        for k, v in kwargs.items():
+            if k not in self.tracked_dict:
+                self.tracked_dict[k] = v
 
     def closeEvent(self, event):
         global flag
         flag = False
         event.accept()
 
-def main(*args, tracked_dict=None, **kwargs):
+def main(*args, caller_globals=None, tracked_dict=None, **kwargs):
     global window1
     app = QApplication(sys.argv)
-    window1 = MainWindow(*args, tracked_dict=tracked_dict, **kwargs)
+    window1 = MainWindow(*args, caller_globals=caller_globals, tracked_dict=tracked_dict, **kwargs)
     sys.exit(app.exec_())
