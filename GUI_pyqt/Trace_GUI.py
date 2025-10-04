@@ -1,6 +1,5 @@
 import sys
 from threading import Thread
-import time
 from typing import Any
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QLabel, QWidget, QPushButton,
@@ -8,7 +7,7 @@ from PyQt5.QtWidgets import (
     QRadioButton, QGroupBox, QButtonGroup, QSpinBox
 )
 from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 
 flag = True
 
@@ -18,7 +17,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Trace GUI')
         self.setCentralWidget(QWidget())
         self.hbox1 = QHBoxLayout(self.centralWidget())
-        self.vbox = QVBoxLayout(self.centralWidget())
+        self.vbox1 = QVBoxLayout(self.centralWidget())
 
         # Use the caller's global namespace and tracked dictionary
         self.glbl = caller_globals or {}
@@ -33,7 +32,10 @@ class MainWindow(QMainWindow):
 
         self.initUI()
         self.trace(*args, **kwargs)
-        Thread(target=self.update, daemon=True).start()
+        # Use QTimer for safe GUI updates
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update)
+        self.timer.start(1000)  # Update every 1000ms
         self.show()
 
     def initUI(self):
@@ -45,12 +47,10 @@ class MainWindow(QMainWindow):
             self.hbox1.addWidget(label)
 
     def update(self):
-        while flag:
-            for key, label in self.labels.items():
-                # Check glbl first, fall back to tracked_dict
-                value = self.glbl.get(key, self.tracked_dict[key])
-                label.setText(f"{key}: {value}")
-            time.sleep(1)
+        for key, label in self.labels.items():
+            # Check glbl first, fall back to tracked_dict
+            value = self.glbl.get(key, self.tracked_dict[key])
+            label.setText(f"{key}: {value}")
 
     def trace(self, *args, **kwargs):
         # Update tracked_dict with initial kwargs if not provided
@@ -61,10 +61,17 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         global flag
         flag = False
+        self.timer.stop()  # Stop the timer when closing
         event.accept()
 
-def main(*args, caller_globals=None, tracked_dict=None, **kwargs):
+def run_gui(*args, caller_globals=None, tracked_dict=None, **kwargs):
     global window1
     app = QApplication(sys.argv)
     window1 = MainWindow(*args, caller_globals=caller_globals, tracked_dict=tracked_dict, **kwargs)
-    sys.exit(app.exec_())
+    app.exec_()  # Run the event loop without sys.exit
+
+def main(*args, caller_globals=None, tracked_dict=None, **kwargs):
+    # Start the GUI in a separate daemon thread
+    Thread(target=run_gui, args=args, kwargs={"caller_globals": caller_globals, "tracked_dict": tracked_dict, **kwargs}, daemon=True).start()
+    # Return immediately to allow the importing script to continue
+    return
