@@ -10,24 +10,35 @@ from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import Qt, QTimer
 
 flag = True
+GREEN = "\033[92m"
+RESET = "\033[0m"
+speed = 120
+# label.setText(f'Speed: <span style="color: red;">{speed}</span> km/h')
+
 
 class MainWindow(QMainWindow):
-    def __init__(self, *args, caller_globals=None, tracked_dict=None, **kwargs):
+    def __init__(self, *args, caller_globals=None, tracked_dict=None, controled_dict=None, **kwargs):
         super().__init__()
         self.setWindowTitle('Trace GUI')
         self.setCentralWidget(QWidget())
         self.hbox1 = QHBoxLayout(self.centralWidget())
-        self.vbox1 = QVBoxLayout(self.centralWidget())
+        self.vbox1 = QGridLayout(self.centralWidget())
+        self.vbox2 = QGridLayout(self.centralWidget())
+        self.group_box1 = QGroupBox(self)
+        self.group_box2 = QGroupBox(self)
 
         # Use the caller's global namespace and tracked dictionary
         self.glbl = caller_globals or {}
         self.tracked_dict = tracked_dict or kwargs
+        self.controled_dict = controled_dict or {}
         self.labels = {}
+        self.line_edits = {}
+        self.buttons = {}
 
         self.setStyleSheet(
-            "QLabel{border: 2px solid black; border-radius: 5px; margin: 5px;}"
-            "QHBoxLayout{border: 2px solid black; border-radius: 5px; margin: 5px;}"
-            "QVBoxLayout{border: 2px solid black; border-radius: 5px; margin: 5px;}"
+            "QLabel{border: 2px solid black; border-radius: 5px; margin: 5px; font-size: 20px;}"
+            "QLineEdit{border: 2px solid black; border-radius: 5px; margin: 5px; font-size: 20px;}"
+            "QGroupBox{border: 2px solid black; border-radius: 5px; margin: 5px;}"
         )
 
         self.initUI()
@@ -35,22 +46,46 @@ class MainWindow(QMainWindow):
         # Use QTimer for safe GUI updates
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(1000)  # Update every 1000ms
+        self.timer.start(100)  # Update every 1000ms
         self.show()
 
     def initUI(self):
-        self.vbox.addLayout(self.hbox1)
-        for key in self.tracked_dict:
+        self.group_box1.setLayout(self.vbox1)
+        self.group_box2.setLayout(self.vbox2)
+        self.hbox1.addWidget(self.group_box1)
+        self.hbox1.addWidget(self.group_box2)
+
+        for i, key in enumerate(self.tracked_dict):
             value = self.glbl.get(key, self.tracked_dict[key])
-            label = QLabel(f"{key}: {value}", self)
+            label = QLabel(f"{key}: <span style='color: green;'>{value}</span>", self)
             self.labels[key] = label
-            self.hbox1.addWidget(label)
+            self.vbox1.addWidget(label, i%5, i//5)
+
+        for i, key in enumerate(self.controled_dict):
+            value = self.glbl.get(key, self.controled_dict[key])
+            label = QLabel(f"{key}: {value}", self)
+
+            line_edit = QLineEdit(self)
+            line_edit.setPlaceholderText("Enter value")
+            line_edit.returnPressed.connect(lambda k=key: self.on_button_click(k))
+
+            button = QPushButton("Change", self)
+            button.clicked.connect(lambda _, k=key: self.on_button_click(k))
+
+            self.labels[key] = label
+            self.line_edits[key] = line_edit
+            self.buttons[key] = button
+
+            self.vbox2.addWidget(label, i, 0)
+            self.vbox2.addWidget(line_edit, i, 1)
+            self.vbox2.addWidget(button, i, 2)
 
     def update(self):
         for key, label in self.labels.items():
             # Check glbl first, fall back to tracked_dict
-            value = self.glbl.get(key, self.tracked_dict[key])
-            label.setText(f"{key}: {value}")
+            if key in self.tracked_dict: value = self.glbl.get(key, self.tracked_dict[key])
+            else: value = self.glbl.get(key, self.controled_dict[key])
+            label.setText(f"{key}: <span style='color: green;'>{value}</span>")
 
     def trace(self, *args, **kwargs):
         # Update tracked_dict with initial kwargs if not provided
@@ -58,20 +93,31 @@ class MainWindow(QMainWindow):
             if k not in self.tracked_dict:
                 self.tracked_dict[k] = v
 
+    def on_button_click(self, key, *args):
+        value = self.line_edits[key].text()
+        self.glbl[key] = value
+        self.line_edits[key].clear()
+
+    def on_line_edit_return(self, key):
+        value = self.line_edits[key].text()
+        self.glbl[key] = value
+        self.line_edits[key].clear()
+
     def closeEvent(self, event):
         global flag
         flag = False
         self.timer.stop()  # Stop the timer when closing
         event.accept()
 
-def run_gui(*args, caller_globals=None, tracked_dict=None, **kwargs):
+def run_gui(*args, caller_globals=None, tracked_dict=None, controled_dict=None, **kwargs):
     global window1
     app = QApplication(sys.argv)
-    window1 = MainWindow(*args, caller_globals=caller_globals, tracked_dict=tracked_dict, **kwargs)
+    window1 = MainWindow(*args, caller_globals=caller_globals, tracked_dict=tracked_dict, controled_dict=controled_dict, **kwargs)
     app.exec_()  # Run the event loop without sys.exit
 
-def main(*args, caller_globals=None, tracked_dict=None, **kwargs):
+def create_gui(*args, caller_globals=None, tracked_dict=None, controled_dict=None, **kwargs):
     # Start the GUI in a separate daemon thread
-    Thread(target=run_gui, args=args, kwargs={"caller_globals": caller_globals, "tracked_dict": tracked_dict, **kwargs}, daemon=True).start()
+    Thread(target=run_gui, args=args, kwargs={"caller_globals": caller_globals, "tracked_dict": tracked_dict
+                                              , "controled_dict": controled_dict, **kwargs}, daemon=True).start()
     # Return immediately to allow the importing script to continue
     return
