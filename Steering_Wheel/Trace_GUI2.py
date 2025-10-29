@@ -15,7 +15,6 @@ RESET = "\033[0m"
 speed = 120
 # label.setText(f'Speed: <span style="color: red;">{speed}</span> km/h')
 
-
 class MainWindow(QMainWindow):
     def __init__(self, *args, caller_globals=None, tracked_dict=None, controled_dict=None, slider=None, **kwargs):
         super().__init__()
@@ -36,12 +35,12 @@ class MainWindow(QMainWindow):
         self.line_edits = {}
         self.buttons = {}
         self.slide_bars = {}
-        # self.tabs = {}
 
         self.setStyleSheet(
-            "QLabel{border: 2px solid black; border-radius: 5px; margin: 5px; font-size: 20px;}"
-            "QLineEdit{border: 2px solid black; border-radius: 5px; margin: 5px; font-size: 20px;}"
-            "QGroupBox{border: 2px solid black; border-radius: 5px; margin: 5px;}"
+            "QMainWindow{border-radius: 5px; margin: 5px; background-color: black;}"
+            "QLabel{border-radius: 5px; margin: 5px; font-size: 20px; background-color: #444444; color: white;}"
+            "QLineEdit{border-radius: 5px; margin: 5px; font-size: 20px; background-color: #444444; color: white;}"
+            "QGroupBox{border-radius: 5px; margin: 5px; background-color: #202020;}"
         )
 
         self.initUI()
